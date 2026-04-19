@@ -1,0 +1,49 @@
+{
+  "name": "formrenderer",
+  "widgetName": "FormRenderer",
+  "version": "1.0.0",
+  "description": "Dynamic form renderer with session and grid support",
+  "copyright": "LF",
+  "author": "Luiz Felipe",
+  "engines": {
+    "node": ">=16"
+  },
+  "license": "Apache-2.0",
+  "config": {
+    "projectPath": "",
+    "mendixHost": "http://localhost:8080",
+    "developmentPort": 3000
+  },
+  "packagePath": "com.lf.widget",
+  "scripts": {
+    "start": "pluggable-widgets-tools start:server",
+    "dev": "pluggable-widgets-tools start:web",
+    "build": "pluggable-widgets-tools build:web",
+    "lint": "pluggable-widgets-tools lint",
+    "lint:fix": "pluggable-widgets-tools lint:fix",
+    "prerelease": "npm run lint",
+    "release": "pluggable-widgets-tools release:web"
+  },
+  "devDependencies": {
+    "@mendix/pluggable-widgets-tools": "^10.15.0",
+    "@types/big.js": "^6.0.2"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.1.1",
+    "antd": "^5.16.0",
+    "classnames": "^2.2.6",
+    "dayjs": "^1.11.10"
+  },
+  "overrides": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0"
+  },
+  "resolutions": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "@types/react": "18.2.0",
+    "@types/react-dom": "18.2.0"
+  }
+}

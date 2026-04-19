@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<widget id="com.lf.widget.formrenderer.FormRenderer" pluginWidget="true" needsEntityContext="false" offlineCapable="true"
+        supportedPlatform="Web"
+        xmlns="http://www.mendix.com/widget/1.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.mendix.com/widget/1.0/ ../node_modules/mendix/custom_widget.xsd">
+    <name>Form Renderer</name>
+    <description>Dynamic form renderer with grid, sessions and edit mode.</description>
+    <icon>iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==</icon>
+    <properties>
+        <propertyGroup caption="Data Source">
+            <property key="fieldsDS" type="datasource" isList="true" required="true">
+                <caption>Fields Data Source</caption>
+                <description></description>
+            </property>
+        </propertyGroup>
+
+        <propertyGroup caption="Field Mapping">
+            <property key="fieldLabel" type="attribute" dataSource="fieldsDS" required="true">
+                <caption>Label</caption>
+                <description></description>
+                <attributeTypes><attributeType name="String"/></attributeTypes>
+            </property>
+            <property key="fieldValue" type="attribute" dataSource="fieldsDS" required="true">
+                <caption>Value</caption>
+                <description></description>
+                <attributeTypes><attributeType name="String"/></attributeTypes>
+            </property>
+            <property key="fieldType" type="attribute" dataSource="fieldsDS" required="true">
+                <caption>Field Type</caption>
+                <description></description>
+                <attributeTypes><attributeType name="Enum"/></attributeTypes>
+            </property>
+        </propertyGroup>
+
+        <propertyGroup caption="Layout and Sessions">
+            <property key="fieldSession" type="attribute" dataSource="fieldsDS" required="true">
+                <caption>Session</caption>
+                <description></description>
+                <attributeTypes><attributeType name="String"/></attributeTypes>
+            </property>
+            <property key="linePos" type="attribute" dataSource="fieldsDS" required="true">
+                <caption>LP</caption>
+                <description></description>
+                <attributeTypes><attributeType name="Integer"/></attributeTypes>
+            </property>
+            <property key="colPos" type="attribute" dataSource="fieldsDS" required="true">
+                <caption>CP</caption>
+                <description></description>
+                <attributeTypes><attributeType name="Integer"/></attributeTypes>
+            </property>
+            <property key="fieldSize" type="attribute" dataSource="fieldsDS" required="true">
+                <caption>Field Size</caption>
+                <description></description>
+                <attributeTypes><attributeType name="Enum"/></attributeTypes>
+            </property>
+        </propertyGroup>
+
+        <propertyGroup caption="Table Configuration">
+            <property key="tableRows" type="attribute" dataSource="fieldsDS" required="false">
+                <caption>Number of Rows</caption>
+                <description></description>
+                <attributeTypes><attributeType name="Integer"/></attributeTypes>
+            </property>
+            <property key="tableCols" type="attribute" dataSource="fieldsDS" required="false">
+                <caption>Number of Columns</caption>
+                <description></description>
+                <attributeTypes><attributeType name="Integer"/></attributeTypes>
+            </property>
+            <property key="tableConfig" type="attribute" dataSource="fieldsDS" required="false">
+                <caption>Table Config (Headers JSON)</caption>
+                <description></description>
+                <attributeTypes><attributeType name="String"/></attributeTypes>
+            </property>
+        </propertyGroup>
+
+        <propertyGroup caption="Editor Mode">
+            <property key="editMode" type="boolean" defaultValue="false">
+                <caption>Enable Edit Mode</caption>
+                <description>Shows an edit icon next to each field label.</description>
+            </property>
+            <property key="onEditAction" type="action" dataSource="fieldsDS" required="false">
+                <caption>On Edit Action</caption>
+                <description>Action triggered when the edit icon is clicked.</description>
+            </property>
+            <property key="onDeleteAction" type="action" dataSource="fieldsDS" required="false">
+                <caption>On Delete Action</caption>
+                <description>Action triggered when the delete icon is clicked.</description>
+            </property>
+        </propertyGroup>
+
+        <propertyGroup caption="Events">
+            <property key="onChangeAction" type="action" dataSource="fieldsDS" required="false">
+                <caption>On Change</caption>
+                <description></description>
+            </property>
+        </propertyGroup>
+    </properties>
+</widget>

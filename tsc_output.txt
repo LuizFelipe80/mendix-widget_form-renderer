@@ -1,0 +1,16 @@
+src/FormRenderer.editorPreview.tsx(6,10): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
+src/FormRenderer.editorPreview.tsx(7,14): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
+src/FormRenderer.editorPreview.tsx(8,14): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
+src/FormRenderer.tsx(17,10): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
+src/FormRenderer.tsx(19,18): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
+src/FormRenderer.tsx(20,22): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
+src/FormRenderer.tsx(21,22): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
+src/FormRenderer.tsx(22,22): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
+src/FormRenderer.tsx(24,30): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
+src/FormRenderer.tsx(25,34): error TS2874: This JSX tag requires 'createElement' to be in scope, but it could not be found.
+src/FormRenderer.tsx(26,34): error TS2874: This JSX tag requires 'createElement' to be in scope, but it could not be found.
+src/FormRenderer.tsx(27,34): error TS2874: This JSX tag requires 'createElement' to be in scope, but it could not be found.
+src/FormRenderer.tsx(28,34): error TS2874: This JSX tag requires 'createElement' to be in scope, but it could not be found.
+src/FormRenderer.tsx(29,34): error TS2874: This JSX tag requires 'createElement' to be in scope, but it could not be found.
+src/FormRenderer.tsx(30,34): error TS2874: This JSX tag requires 'createElement' to be in scope, but it could not be found.
+src/FormRenderer.tsx(36,18): error TS2552: Cannot find name 'createElement'. Did you mean 'frameElement'?
