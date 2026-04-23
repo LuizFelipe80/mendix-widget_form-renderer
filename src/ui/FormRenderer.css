@@ -52,6 +52,39 @@
     line-height: 1.4;
 }
 
+.auto-header-icon {
+    font-size: 14px;
+    color: #52c41a;
+    cursor: pointer;
+    transition: color 0.3s;
+}
+.auto-header-icon:hover {
+    color: #73d13d;
+}
+
+/* EXCEL COORDINATES */
+.excel-coord-header, .excel-coord-row, .excel-coord-corner {
+    background-color: #fafafa;
+    color: #bfbfbf;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 500;
+    user-select: none;
+    border: 1px solid #f0f0f0;
+    padding: 2px 4px;
+}
+.excel-coord-corner {
+    border-top-left-radius: 4px;
+    width: 32px;
+    min-width: 32px;
+    max-width: 32px;
+}
+.excel-coord-row {
+    width: 32px;
+    min-width: 32px;
+    max-width: 32px;
+}
+
 .edit-icon-btn {
     font-size: 14px;
     color: #1890ff;

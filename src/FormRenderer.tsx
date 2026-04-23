@@ -1,6 +1,6 @@
 import React, { ReactElement, createElement, useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Input, InputNumber, Select, DatePicker, Divider, Typography, Tooltip } from "antd";
-import { EditOutlined, DeleteOutlined, TableOutlined } from "@ant-design/icons";
+import { Input, InputNumber, Select, DatePicker, Divider, Typography, Tooltip, Modal, Tabs, Switch, Dropdown } from "antd";
+import { EditOutlined, DeleteOutlined, TableOutlined, SettingOutlined } from "@ant-design/icons";
 import { FormRendererContainerProps } from "../typings/FormRendererProps";
 import { ObjectItem, ListAttributeValue } from "mendix";
 import { Parser } from "hot-formula-parser";
@@ -35,11 +35,23 @@ interface TableInputProps {
 }
 
 const TableInput = ({
-    item, rows, cols, tableConfigAttr, saveToMendix, localValue, onChangeValue
-}: TableInputProps & { localValue: string, onChangeValue: (v: string) => void }) => {
+    item, rows, cols, tableConfigAttr, saveToMendix, localValue, onChangeValue, showCoordinates
+}: TableInputProps & { localValue: string, onChangeValue: (v: string) => void, showCoordinates: boolean }) => {
 
     const [rawConfig, setRawConfig] = useState(tableConfigAttr?.get(item).value || "");
-    const [focusedCell, setFocusedCell] = useState<{ r: number, c: number } | null>(null);
+    const [focusedCell, setFocusedCell] = useState<{r: number, c: number} | null>(null);
+
+    const getColumnLabel = useCallback((colIndex: number) => {
+        let dividend = colIndex + 1;
+        let label = '';
+        let modulo;
+        while (dividend > 0) {
+            modulo = (dividend - 1) % 26;
+            label = String.fromCharCode(65 + modulo) + label;
+            dividend = Math.floor((dividend - modulo) / 26);
+        }
+        return label;
+    }, []);
 
     useEffect(() => {
         setRawConfig(tableConfigAttr?.get(item).value || "");
@@ -150,9 +162,20 @@ const TableInput = ({
     return (
         <div className="dynamic-table-wrapper">
             <table className="form-custom-table">
+                {showCoordinates && (
+                    <thead>
+                        <tr>
+                            <th className="excel-coord-corner"></th>
+                            {Array.from({ length: cols }).map((_, c) => (
+                                <th key={`col-${c}`} className="excel-coord-header">{getColumnLabel(c)}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                )}
                 <tbody>
                     {data.map((_, r) => (
                         <tr key={`row-${r}`}>
+                            {showCoordinates && <th className="excel-coord-row">{r + 1}</th>}
                             {Array.from({ length: cols }).map((_, c) => {
                                 const isHeader = headerKeys.includes(`${r}-${c}`);
                                 const isFocused = focusedCell?.r === r && focusedCell?.c === c;
@@ -176,7 +199,7 @@ const TableInput = ({
                                     <Input
                                         value={displayValue}
                                         onChange={e => handleCellChange(r, c, e.target.value)}
-                                        onFocus={() => setFocusedCell({ r, c })}
+                                        onFocus={() => setFocusedCell({r, c})}
                                         onBlur={() => { setFocusedCell(null); handleFinalize(); }}
                                         disabled={isHeader}
                                         className={isHeader ? "table-header-cell" : "table-plain-input"}
@@ -209,9 +232,10 @@ interface FieldInputProps {
     inputCache: React.MutableRefObject<Map<string, string>>;
     editMode: boolean;
     onCacheUpdated: () => void;
+    showCoordinates: boolean;
 }
 
-const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRowsAttr, tableColsAttr, tableConfigAttr, onChangeAction, inputCache, editMode, onCacheUpdated }: FieldInputProps) => {
+const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRowsAttr, tableColsAttr, tableConfigAttr, onChangeAction, inputCache, editMode, onCacheUpdated, showCoordinates }: FieldInputProps) => {
     const fieldKey = fieldLabelAttr.get(item).value || item.id;
     const initialValue = fieldValueAttr.get(item).value || "";
 
@@ -266,7 +290,7 @@ const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRows
     if (isTable) {
         const r = Number(tableRowsAttr?.get(item).value?.toString()) || 1;
         const c = Number(tableColsAttr?.get(item).value?.toString()) || 1;
-        return <TableInput item={item} rows={r} cols={c} tableConfigAttr={tableConfigAttr} saveToMendix={saveToMendix} localValue={localValue} onChangeValue={handleChange} />;
+        return <TableInput item={item} rows={r} cols={c} tableConfigAttr={tableConfigAttr} saveToMendix={saveToMendix} localValue={localValue} onChangeValue={handleChange} showCoordinates={showCoordinates} />;
     }
 
     if (type === "integer") return withTooltip(<InputNumber disabled={disabledState} style={{ width: "100%" }} value={localValue ? parseInt(localValue, 10) : undefined} onChange={val => { const str = val !== null ? String(val) : ""; handleChange(str); }} onBlur={() => saveToMendix(localValue)} />);
@@ -281,6 +305,28 @@ const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRows
 export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fieldSession, linePos, colPos, fieldSize, tableRows, tableCols, tableConfig, outputJSON, editMode, onEditAction, onDeleteAction, onChangeAction }: FormRendererContainerProps): ReactElement {
 
     const inputCacheRef = useRef<Map<string, string>>(new Map());
+    const [showCoordinates, setShowCoordinates] = useState(false);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    const dropdownItems = [
+        {
+            key: '1',
+            label: (
+                <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: 220 }}>
+                    <span style={{ fontSize: '13px' }}>Show Coordinates (A1)</span>
+                    <Switch size="small" checked={showCoordinates} onChange={setShowCoordinates} />
+                </div>
+            )
+        },
+        {
+            type: 'divider' as const
+        },
+        {
+            key: '2',
+            label: <span style={{ fontSize: '13px' }}>📖 Formula Instructions</span>,
+            onClick: () => setIsSettingsOpen(true)
+        }
+    ];
 
     const exportFormState = () => {
         if (!outputJSON || outputJSON.readOnly) return;
@@ -321,9 +367,22 @@ export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fiel
 
     return (
         <div className="form-renderer-container">
-            {Array.from(formStructure.entries()).map(([sessionName, rowsMap]) => (
+            {Array.from(formStructure.entries()).map(([sessionName, rowsMap]) => {
+                const hasTable = Array.from(rowsMap.values()).flat().some(item => (fieldType.get(item).value || "").trim().toLowerCase() === "table");
+                return (
                 <div key={sessionName} className="form-session-wrapper">
-                    <Divider orientation={"left" as any}><Title level={5} className="session-title">{sessionName}</Title></Divider>
+                    <Divider orientation={"left" as any}>
+                        <Title level={5} className="session-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                            {sessionName}
+                            {hasTable && (
+                                <Dropdown menu={{ items: dropdownItems }} trigger={['click']} placement="bottomLeft">
+                                    <Tooltip title="Table Settings & Formulas">
+                                        <SettingOutlined style={{ fontSize: '14px', color: '#888', cursor: 'pointer', verticalAlign: 'middle' }} />
+                                    </Tooltip>
+                                </Dropdown>
+                            )}
+                        </Title>
+                    </Divider>
                     <div className="form-rows-container">
                         {Array.from(rowsMap.entries()).sort(([a], [b]) => a - b).map(([lp, fields]) => {
                             const maxCPInRow = Math.min(3, Math.max(...fields.map(f => Number(colPos.get(f).value) || 1)));
@@ -407,6 +466,7 @@ export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fiel
                                                         inputCache={inputCacheRef}
                                                         editMode={editMode}
                                                         onCacheUpdated={exportFormState}
+                                                        showCoordinates={showCoordinates}
                                                     />
                                                 </div>
                                             );
@@ -419,7 +479,52 @@ export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fiel
                         })}
                     </div>
                 </div>
-            ))}
+            )})}
+
+            <Modal
+                title="📖 Formula Instructions"
+                open={isSettingsOpen}
+                onCancel={() => setIsSettingsOpen(false)}
+                footer={null}
+                width={600}
+            >
+                <Tabs defaultActiveKey="1" items={[
+                    {
+                        key: "1",
+                        label: "Math & Statistics",
+                        children: (
+                            <div style={{ padding: "8px 0" }}>
+                                <p>You can use table cells like a smart spreadsheet. Always start with the equal sign <code>=</code>.</p>
+                                <ul style={{ lineHeight: '2' }}>
+                                    <li><code>=SUM(A1:B2)</code>: Sums all values in the range from A1 to B2.</li>
+                                    <li><code>=AVERAGE(A1:A5)</code>: Calculates the average of the values in the range.</li>
+                                    <li><code>=MAX(A1:B1)</code>: Returns the maximum value found.</li>
+                                    <li><code>=A1 * 5 / B2</code>: Performs direct calculations using basic operators.</li>
+                                </ul>
+                                <p style={{ color: '#888', fontStyle: 'italic', marginTop: 12 }}>
+                                    Tip: Formulas use the English standard syntax natively.
+                                </p>
+                            </div>
+                        )
+                    },
+                    {
+                        key: "2",
+                        label: "Logic & Text",
+                        children: (
+                            <div style={{ padding: "8px 0" }}>
+                                <ul style={{ lineHeight: '2' }}>
+                                    <li><code>=IF(A1&gt;10, "Approved", "Rejected")</code>: Conditional logic.</li>
+                                    <li><code>=CONCATENATE(A1, " ", B1)</code>: Joins two or more strings into a single cell.</li>
+                                    <li><code>=EXACT(A1, B1)</code>: Checks if two strings are exactly the same (returns TRUE or FALSE).</li>
+                                </ul>
+                                <p style={{ color: '#888', fontStyle: 'italic', marginTop: 12 }}>
+                                    Note: Function parameters are always separated by commas (<code>,</code>).
+                                </p>
+                            </div>
+                        )
+                    }
+                ]} />
+            </Modal>
         </div>
     );
 }
