@@ -34,17 +34,17 @@ interface TableInputProps {
     saveToMendix: (val: string) => void;
 }
 
-const TableInput = ({ 
-    item, rows, cols, tableConfigAttr, saveToMendix, localValue, onChangeValue 
+const TableInput = ({
+    item, rows, cols, tableConfigAttr, saveToMendix, localValue, onChangeValue
 }: TableInputProps & { localValue: string, onChangeValue: (v: string) => void }) => {
-    
+
     const [rawConfig, setRawConfig] = useState(tableConfigAttr?.get(item).value || "");
-    const [focusedCell, setFocusedCell] = useState<{r: number, c: number} | null>(null);
+    const [focusedCell, setFocusedCell] = useState<{ r: number, c: number } | null>(null);
 
     useEffect(() => {
         setRawConfig(tableConfigAttr?.get(item).value || "");
     }, [tableConfigAttr?.get(item).value]);
-    
+
     const [data, setData] = useState<string[][]>([]);
     const isEditing = useRef(false);
     const dataRef = useRef(data);
@@ -56,13 +56,13 @@ const TableInput = ({
     const evaluateCell = useCallback((r: number, c: number) => {
         const coord = `${r}-${c}`;
         if (evaluatingRef.current.has(coord)) return { error: '#REF!', result: null };
-        
+
         evaluatingRef.current.add(coord);
         let rawVal = "";
         if (dataRef.current[r] && dataRef.current[r][c]) {
             rawVal = dataRef.current[r][c];
         }
-        
+
         let res;
         if (typeof rawVal === 'string' && rawVal.startsWith('=')) {
             res = parser.parse(rawVal.substring(1));
@@ -70,7 +70,7 @@ const TableInput = ({
             const asNum = Number(rawVal);
             res = { error: null, result: rawVal === "" ? "" : (isNaN(asNum) ? rawVal : asNum) };
         }
-        
+
         evaluatingRef.current.delete(coord);
         return res;
     }, [parser]);
@@ -176,7 +176,7 @@ const TableInput = ({
                                     <Input
                                         value={displayValue}
                                         onChange={e => handleCellChange(r, c, e.target.value)}
-                                        onFocus={() => setFocusedCell({r, c})}
+                                        onFocus={() => setFocusedCell({ r, c })}
                                         onBlur={() => { setFocusedCell(null); handleFinalize(); }}
                                         disabled={isHeader}
                                         className={isHeader ? "table-header-cell" : "table-plain-input"}
@@ -202,7 +202,7 @@ interface FieldInputProps {
     fieldType: string;
     fieldValueAttr: ListAttributeValue<string>;
     fieldLabelAttr: ListAttributeValue<string>;
-    tableRowsAttr?: ListAttributeValue<any>; 
+    tableRowsAttr?: ListAttributeValue<any>;
     tableColsAttr?: ListAttributeValue<any>;
     tableConfigAttr?: ListAttributeValue<string>;
     onChangeAction?: any;
@@ -214,17 +214,17 @@ interface FieldInputProps {
 const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRowsAttr, tableColsAttr, tableConfigAttr, onChangeAction, inputCache, editMode, onCacheUpdated }: FieldInputProps) => {
     const fieldKey = fieldLabelAttr.get(item).value || item.id;
     const initialValue = fieldValueAttr.get(item).value || "";
-    
+
     const [localValue, setLocalValue] = useState(() => {
         if (inputCache.current.has(fieldKey)) {
             return inputCache.current.get(fieldKey)!;
         }
         return initialValue;
     });
-    
-    useEffect(() => { 
+
+    useEffect(() => {
         const cached = inputCache.current.get(fieldKey);
-        
+
         if (initialValue !== cached) {
             if (initialValue !== "") {
                 setLocalValue(initialValue);
@@ -274,19 +274,18 @@ const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRows
     if (type === "_boolean" || type === "boolean") return <Select disabled={disabledState} style={{ width: "100%" }} value={localValue === "true" ? "true" : localValue === "false" ? "false" : undefined} placeholder="Selecione..." onChange={val => { handleChange(val); saveToMendix(val); }} options={[{ value: "true", label: "Sim" }, { value: "false", label: "Não" }]} />;
     if (type === "datetime" || type === "date") return withTooltip(<DatePicker disabled={disabledState} style={{ width: "100%" }} value={localValue ? dayjs(localValue) : null} format="DD/MM/YYYY" onChange={date => { const str = date ? date.toISOString() : ""; handleChange(str); saveToMendix(str); }} />);
     if (type === "textarea") return withTooltip(<TextArea disabled={disabledState} rows={4} value={localValue} onChange={e => handleChange(e.target.value)} onBlur={() => saveToMendix(localValue)} />);
-    
+
     return withTooltip(<Input disabled={disabledState} value={localValue} onChange={e => handleChange(e.target.value)} onBlur={() => saveToMendix(localValue)} />);
 };
 
 export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fieldSession, linePos, colPos, fieldSize, tableRows, tableCols, tableConfig, outputJSON, editMode, onEditAction, onDeleteAction, onChangeAction }: FormRendererContainerProps): ReactElement {
-    
-    // CACHE ROOT TO SURVIVE RE-RENDERS
+
     const inputCacheRef = useRef<Map<string, string>>(new Map());
 
     const exportFormState = () => {
         if (!outputJSON || outputJSON.readOnly) return;
         if (!fieldsDS.items) return;
-        
+
         const formState = fieldsDS.items.map(item => {
             const key = fieldLabel.get(item).value || item.id;
             const cached = inputCacheRef.current.get(key);
@@ -297,7 +296,7 @@ export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fiel
                 value: val
             };
         });
-        
+
         outputJSON.setValue(JSON.stringify(formState));
     };
 
@@ -356,26 +355,23 @@ export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fiel
                                                         {editMode && typeValue.trim().toLowerCase() === "table" && tableConfig && (
                                                             <Tooltip title="Extrair Headers Preenchidos">
                                                                 <TableOutlined className="edit-icon-btn action-header-btn" onMouseDown={() => {
-                                                                    // Usamos setTimeout para evitar Race Condition contra o onBlur da célula que o usuário acabou de digitar
                                                                     setTimeout(() => {
                                                                         const key = fieldLabel.get(field).value || field.id;
                                                                         let val = inputCacheRef.current.get(key) || fieldValue.get(field).value || "";
                                                                         if (!val || val.trim() === "") val = "{\"cells\":[]}";
-                                                                        
+
                                                                         try {
                                                                             const parsed = JSON.parse(val);
                                                                             const configs: string[] = [];
-                                                                            
+
                                                                             if (parsed && parsed.cells && Array.isArray(parsed.cells)) {
-                                                                                // Parseia o novo formato
                                                                                 parsed.cells.forEach((cell: any) => {
                                                                                     if (cell.value && cell.value.trim() !== "") {
                                                                                         configs.push(`${cell.row}-${cell.col}`);
                                                                                     }
                                                                                 });
                                                                             } else if (Array.isArray(parsed)) {
-                                                                                // Fallback legado
-                                                                                for(let ro = 0; ro < parsed.length; ro++) {
+                                                                                for (let ro = 0; ro < parsed.length; ro++) {
                                                                                     if (parsed[ro] && Array.isArray(parsed[ro])) {
                                                                                         for (let co = 0; co < parsed[ro].length; co++) {
                                                                                             if (parsed[ro][co] && parsed[ro][co].trim() !== "") {
@@ -385,29 +381,29 @@ export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fiel
                                                                                     }
                                                                                 }
                                                                             }
-                                                                            
-                                                                            const stringified = configs.join(", "); // Mapeamento 0-0, 0-1 (Sem colchetes)
-                                                                            
+
+                                                                            const stringified = configs.join(", ");
+
                                                                             const propConfig = tableConfig.get(field);
                                                                             if (propConfig && !propConfig.readOnly) {
                                                                                 propConfig.setValue(stringified);
                                                                             }
                                                                             exportFormState();
-                                                                        } catch(e) { console.error("JSON Error parsing table data", e); }
+                                                                        } catch (e) { console.error("JSON Error parsing table data", e); }
                                                                     }, 150);
                                                                 }} />
                                                             </Tooltip>
                                                         )}
                                                     </div>
-                                                    <FieldInput 
-                                                        item={field} 
-                                                        fieldType={typeValue} 
-                                                        fieldValueAttr={fieldValue} 
+                                                    <FieldInput
+                                                        item={field}
+                                                        fieldType={typeValue}
+                                                        fieldValueAttr={fieldValue}
                                                         fieldLabelAttr={fieldLabel}
                                                         tableRowsAttr={tableRows}
                                                         tableColsAttr={tableCols}
                                                         tableConfigAttr={tableConfig}
-                                                        onChangeAction={onChangeAction} 
+                                                        onChangeAction={onChangeAction}
                                                         inputCache={inputCacheRef}
                                                         editMode={editMode}
                                                         onCacheUpdated={exportFormState}
