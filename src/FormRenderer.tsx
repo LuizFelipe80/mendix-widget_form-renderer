@@ -1,8 +1,9 @@
-import { ReactElement, createElement, useMemo, useState, useEffect, useRef } from "react";
+import React, { ReactElement, createElement, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Input, InputNumber, Select, DatePicker, Divider, Typography, Tooltip } from "antd";
 import { EditOutlined, DeleteOutlined, TableOutlined } from "@ant-design/icons";
 import { FormRendererContainerProps } from "../typings/FormRendererProps";
 import { ObjectItem, ListAttributeValue } from "mendix";
+import { Parser } from "hot-formula-parser";
 import dayjs from "dayjs";
 
 import "antd/dist/reset.css";
@@ -25,9 +26,6 @@ const getSizeMultiplier = (sizeEnum: string): number => {
     }
 };
 
-/**
- * COMPONENTE DE TABELA DINÂMICA COM PROTEÇÃO DE DADOS
- */
 interface TableInputProps {
     item: ObjectItem;
     rows: number;
@@ -41,6 +39,7 @@ const TableInput = ({
 }: TableInputProps & { localValue: string, onChangeValue: (v: string) => void }) => {
     
     const [rawConfig, setRawConfig] = useState(tableConfigAttr?.get(item).value || "");
+    const [focusedCell, setFocusedCell] = useState<{r: number, c: number} | null>(null);
 
     useEffect(() => {
         setRawConfig(tableConfigAttr?.get(item).value || "");
@@ -48,6 +47,55 @@ const TableInput = ({
     
     const [data, setData] = useState<string[][]>([]);
     const isEditing = useRef(false);
+    const dataRef = useRef(data);
+    useEffect(() => { dataRef.current = data; }, [data]);
+
+    const parser = useMemo(() => new Parser(), []);
+    const evaluatingRef = useRef<Set<string>>(new Set());
+
+    const evaluateCell = useCallback((r: number, c: number) => {
+        const coord = `${r}-${c}`;
+        if (evaluatingRef.current.has(coord)) return { error: '#REF!', result: null };
+        
+        evaluatingRef.current.add(coord);
+        let rawVal = "";
+        if (dataRef.current[r] && dataRef.current[r][c]) {
+            rawVal = dataRef.current[r][c];
+        }
+        
+        let res;
+        if (typeof rawVal === 'string' && rawVal.startsWith('=')) {
+            res = parser.parse(rawVal.substring(1));
+        } else {
+            const asNum = Number(rawVal);
+            res = { error: null, result: rawVal === "" ? "" : (isNaN(asNum) ? rawVal : asNum) };
+        }
+        
+        evaluatingRef.current.delete(coord);
+        return res;
+    }, [parser]);
+
+    useEffect(() => {
+        parser.on('callCellValue', (cellCoord: any, done: any) => {
+            const r = cellCoord.row.index;
+            const c = cellCoord.column.index;
+            const res = evaluateCell(r, c);
+            done(res.error ? res.error : res.result);
+        });
+
+        parser.on('callRangeValue', (startCellCoord: any, endCellCoord: any, done: any) => {
+            const fragment = [];
+            for (let r = startCellCoord.row.index; r <= endCellCoord.row.index; r++) {
+                const rowData = [];
+                for (let c = startCellCoord.column.index; c <= endCellCoord.column.index; c++) {
+                    const res = evaluateCell(r, c);
+                    rowData.push(res.error ? res.error : res.result);
+                }
+                fragment.push(rowData);
+            }
+            done(fragment);
+        });
+    }, [parser, evaluateCell]);
 
     const headerKeys = useMemo(() => {
         if (!rawConfig) return [];
@@ -56,11 +104,9 @@ const TableInput = ({
 
     useEffect(() => {
         if (isEditing.current) return;
-        
         try {
             const parsed = JSON.parse(localValue);
             if (parsed && parsed.cells && Array.isArray(parsed.cells)) {
-                // Novo formato JSON Structure (Mendix Import Mapping friendly)
                 const newData = Array.from({ length: rows }, () => Array(cols).fill(""));
                 parsed.cells.forEach((cell: any) => {
                     if (cell.row < rows && cell.col < cols) {
@@ -68,20 +114,17 @@ const TableInput = ({
                     }
                 });
                 setData(newData);
-                return;
             } else if (Array.isArray(parsed) && parsed.length > 0) {
-                // Fallback legado (Matriz 2D simples)
                 setData(parsed);
-                return;
+            } else if (data.length === 0) {
+                setData(Array.from({ length: rows }, () => Array(cols).fill("")));
             }
-        } catch (e) {}
-
-        if (data.length === 0) {
-            setData(Array.from({ length: rows }, () => Array(cols).fill("")));
+        } catch (e) {
+            if (data.length === 0) setData(Array.from({ length: rows }, () => Array(cols).fill("")));
         }
     }, [localValue, rows, cols]);
 
-    const updateCell = (r: number, c: number, value: string) => {
+    const handleCellChange = (r: number, c: number, value: string) => {
         isEditing.current = true;
         const newData = [...data];
         newData[r] = [...newData[r]];
@@ -91,14 +134,12 @@ const TableInput = ({
 
     const handleFinalize = () => {
         isEditing.current = false;
-        
         const cells = [];
         for (let r = 0; r < data.length; r++) {
             for (let c = 0; c < data[r].length; c++) {
                 cells.push({ row: r, col: c, value: data[r][c] });
             }
         }
-        
         const stringified = JSON.stringify({ cells });
         onChangeValue(stringified);
         saveToMendix(stringified);
@@ -110,23 +151,41 @@ const TableInput = ({
         <div className="dynamic-table-wrapper">
             <table className="form-custom-table">
                 <tbody>
-                    {data.map((row, r) => (
+                    {data.map((_, r) => (
                         <tr key={`row-${r}`}>
                             {Array.from({ length: cols }).map((_, c) => {
                                 const isHeader = headerKeys.includes(`${r}-${c}`);
-                                const cellValue = row[c] || "";
+                                const isFocused = focusedCell?.r === r && focusedCell?.c === c;
+                                const rawVal = data[r] && data[r][c] !== undefined ? data[r][c] : "";
+                                let displayValue = rawVal;
+                                let hasError = false;
+                                let errorMsg = "";
+
+                                if (!isFocused && typeof rawVal === 'string' && rawVal.startsWith('=')) {
+                                    const res = evaluateCell(r, c);
+                                    if (res.error) {
+                                        hasError = true;
+                                        errorMsg = res.error;
+                                        displayValue = "-";
+                                    } else {
+                                        displayValue = res.result !== null && res.result !== undefined ? String(res.result) : "";
+                                    }
+                                }
+
+                                const cellInput = (
+                                    <Input
+                                        value={displayValue}
+                                        onChange={e => handleCellChange(r, c, e.target.value)}
+                                        onFocus={() => setFocusedCell({r, c})}
+                                        onBlur={() => { setFocusedCell(null); handleFinalize(); }}
+                                        disabled={isHeader}
+                                        className={isHeader ? "table-header-cell" : "table-plain-input"}
+                                    />
+                                );
+
                                 return (
-                                    <td key={`cell-${r}-${c}`} className={isHeader ? "cell-header" : "cell-editable"}>
-                                        {isHeader ? (
-                                            <div className="table-header-content">{cellValue}</div>
-                                        ) : (
-                                            <input 
-                                                className="table-plain-input"
-                                                value={cellValue}
-                                                onChange={e => updateCell(r, c, e.target.value)}
-                                                onBlur={handleFinalize}
-                                            />
-                                        )}
+                                    <td key={`${r}-${c}`} className={isHeader ? "cell-header" : "cell-editable"}>
+                                        {hasError ? <Tooltip title={errorMsg} placement="topLeft" color="red">{cellInput}</Tooltip> : cellInput}
                                     </td>
                                 );
                             })}

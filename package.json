@@ -26,13 +26,15 @@
   },
   "devDependencies": {
     "@mendix/pluggable-widgets-tools": "^10.15.0",
-    "@types/big.js": "^6.0.2"
+    "@types/big.js": "^6.0.2",
+    "@types/hot-formula-parser": "^4.0.4"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.1",
     "antd": "^5.16.0",
     "classnames": "^2.2.6",
-    "dayjs": "^1.11.10"
+    "dayjs": "^1.11.10",
+    "hot-formula-parser": "^4.0.0"
   },
   "overrides": {
     "react": "^18.2.0",
