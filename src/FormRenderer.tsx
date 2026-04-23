@@ -45,20 +45,6 @@ const TableInput = ({
     useEffect(() => {
         setRawConfig(tableConfigAttr?.get(item).value || "");
     }, [tableConfigAttr?.get(item).value]);
-
-    useEffect(() => {
-        if (!window.mx || !window.mx.data || !tableConfigAttr?.id) return;
-        const sub = window.mx.data.subscribe({
-            guid: item.id,
-            attr: tableConfigAttr.id,
-            callback: (_guid: string, _attr: string, value: string) => {
-                setRawConfig(value || "");
-            }
-        });
-        return () => {
-            if (sub && window.mx.data.unsubscribe) window.mx.data.unsubscribe(sub);
-        };
-    }, [item.id, tableConfigAttr?.id]);
     
     const [data, setData] = useState<string[][]>([]);
     const isEditing = useRef(false);
@@ -73,7 +59,18 @@ const TableInput = ({
         
         try {
             const parsed = JSON.parse(localValue);
-            if (Array.isArray(parsed) && parsed.length > 0) {
+            if (parsed && parsed.cells && Array.isArray(parsed.cells)) {
+                // Novo formato JSON Structure (Mendix Import Mapping friendly)
+                const newData = Array.from({ length: rows }, () => Array(cols).fill(""));
+                parsed.cells.forEach((cell: any) => {
+                    if (cell.row < rows && cell.col < cols) {
+                        newData[cell.row][cell.col] = cell.value;
+                    }
+                });
+                setData(newData);
+                return;
+            } else if (Array.isArray(parsed) && parsed.length > 0) {
+                // Fallback legado (Matriz 2D simples)
                 setData(parsed);
                 return;
             }
@@ -94,7 +91,15 @@ const TableInput = ({
 
     const handleFinalize = () => {
         isEditing.current = false;
-        const stringified = JSON.stringify(data);
+        
+        const cells = [];
+        for (let r = 0; r < data.length; r++) {
+            for (let c = 0; c < data[r].length; c++) {
+                cells.push({ row: r, col: c, value: data[r][c] });
+            }
+        }
+        
+        const stringified = JSON.stringify({ cells });
         onChangeValue(stringified);
         saveToMendix(stringified);
     };
@@ -144,9 +149,10 @@ interface FieldInputProps {
     onChangeAction?: any;
     inputCache: React.MutableRefObject<Map<string, string>>;
     editMode: boolean;
+    onCacheUpdated: () => void;
 }
 
-const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRowsAttr, tableColsAttr, tableConfigAttr, onChangeAction, inputCache, editMode }: FieldInputProps) => {
+const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRowsAttr, tableColsAttr, tableConfigAttr, onChangeAction, inputCache, editMode, onCacheUpdated }: FieldInputProps) => {
     const fieldKey = fieldLabelAttr.get(item).value || item.id;
     const initialValue = fieldValueAttr.get(item).value || "";
     
@@ -166,13 +172,9 @@ const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRows
                 inputCache.current.set(fieldKey, initialValue);
             } else if (initialValue === "" && cached !== undefined && cached !== "") {
                 setLocalValue(cached);
-                if (window.mx && window.mx.data) {
-                    window.mx.data.get({
-                        guid: item.id,
-                        callback: (mxobj: any) => {
-                            if (mxobj) mxobj.set(fieldValueAttr.id, cached);
-                        }
-                    });
+                const prop = fieldValueAttr.get(item);
+                if (prop && !prop.readOnly) {
+                    prop.setValue(cached);
                 }
             } else {
                 setLocalValue(initialValue);
@@ -186,21 +188,15 @@ const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRows
     };
 
     const saveToMendix = (newValue: string) => {
-        if (window.mx && window.mx.data) {
-            window.mx.data.get({
-                guid: item.id,
-                callback: (mxobj: any) => {
-                    if (mxobj) {
-                        mxobj.set(fieldValueAttr.id, newValue);
-                        if (mxobj.update) mxobj.update();
-                        if (onChangeAction) {
-                            const action = onChangeAction.get(item);
-                            if (action && action.canExecute) action.execute();
-                        }
-                    }
-                }
-            });
+        const prop = fieldValueAttr.get(item);
+        if (prop && !prop.readOnly) {
+            prop.setValue(newValue);
+            if (onChangeAction) {
+                const action = onChangeAction.get(item);
+                if (action && action.canExecute) action.execute();
+            }
         }
+        onCacheUpdated();
     };
 
     const withTooltip = (node: ReactElement) => (<Tooltip title={localValue} placement="topLeft" mouseEnterDelay={0.5}>{node}</Tooltip>);
@@ -216,17 +212,35 @@ const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRows
 
     if (type === "integer") return withTooltip(<InputNumber disabled={disabledState} style={{ width: "100%" }} value={localValue ? parseInt(localValue, 10) : undefined} onChange={val => { const str = val !== null ? String(val) : ""; handleChange(str); }} onBlur={() => saveToMendix(localValue)} />);
     if (type === "decimal") return withTooltip(<InputNumber disabled={disabledState} style={{ width: "100%" }} value={localValue ? parseFloat(localValue) : undefined} step="0.01" stringMode onChange={val => { const str = val !== null ? String(val) : ""; handleChange(str); }} onBlur={() => saveToMendix(localValue)} />);
-    if (type === "_boolean" || type === "boolean") return <Select disabled={disabledState} style={{ width: "100%" }} value={localValue === "true" ? "true" : localValue === "false" ? "false" : undefined} placeholder="Selecione..." onChange={val => { handleChange(val); saveToMendix(val); }} options={[{ value: "true", label: "True" }, { value: "false", label: "False" }]} />;
-    if (type === "date") return withTooltip(<DatePicker disabled={disabledState} style={{ width: "100%" }} value={localValue ? dayjs(localValue) : null} format="DD/MM/YYYY" onChange={date => { const isoDate = date ? date.toISOString() : ""; handleChange(isoDate); saveToMendix(isoDate); }} />);
+    if (type === "_boolean" || type === "boolean") return <Select disabled={disabledState} style={{ width: "100%" }} value={localValue === "true" ? "true" : localValue === "false" ? "false" : undefined} placeholder="Selecione..." onChange={val => { handleChange(val); saveToMendix(val); }} options={[{ value: "true", label: "Sim" }, { value: "false", label: "Não" }]} />;
+    if (type === "datetime" || type === "date") return withTooltip(<DatePicker disabled={disabledState} style={{ width: "100%" }} value={localValue ? dayjs(localValue) : null} format="DD/MM/YYYY" onChange={date => { const str = date ? date.toISOString() : ""; handleChange(str); saveToMendix(str); }} />);
     if (type === "textarea") return withTooltip(<TextArea disabled={disabledState} rows={4} value={localValue} onChange={e => handleChange(e.target.value)} onBlur={() => saveToMendix(localValue)} />);
-
+    
     return withTooltip(<Input disabled={disabledState} value={localValue} onChange={e => handleChange(e.target.value)} onBlur={() => saveToMendix(localValue)} />);
 };
 
-export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fieldSession, linePos, colPos, fieldSize, tableRows, tableCols, tableConfig, editMode, onEditAction, onDeleteAction, onChangeAction }: FormRendererContainerProps): ReactElement {
+export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fieldSession, linePos, colPos, fieldSize, tableRows, tableCols, tableConfig, outputJSON, editMode, onEditAction, onDeleteAction, onChangeAction }: FormRendererContainerProps): ReactElement {
     
     // CACHE ROOT TO SURVIVE RE-RENDERS
     const inputCacheRef = useRef<Map<string, string>>(new Map());
+
+    const exportFormState = () => {
+        if (!outputJSON || outputJSON.readOnly) return;
+        if (!fieldsDS.items) return;
+        
+        const formState = fieldsDS.items.map(item => {
+            const key = fieldLabel.get(item).value || item.id;
+            const cached = inputCacheRef.current.get(key);
+            const val = cached !== undefined ? cached : (fieldValue.get(item).value || "");
+            return {
+                fieldId: item.id,
+                label: key,
+                value: val
+            };
+        });
+        
+        outputJSON.setValue(JSON.stringify(formState));
+    };
 
     const formStructure = useMemo(() => {
         const structure = new Map<string, Map<number, ObjectItem[]>>();
@@ -282,46 +296,46 @@ export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fiel
                                                         )}
                                                         {editMode && typeValue.trim().toLowerCase() === "table" && tableConfig && (
                                                             <Tooltip title="Extrair Headers Preenchidos">
-                                                                <TableOutlined className="edit-icon-btn action-header-btn" onClick={() => {
-                                                                    const key = fieldLabel.get(field).value || field.id;
-                                                                    let val = inputCacheRef.current.get(key) || fieldValue.get(field).value || "";
-                                                                    if (!val || val.trim() === "") val = "[]";
-                                                                    
-                                                                    try {
-                                                                        const parsed = JSON.parse(val);
-                                                                        const configs: string[] = [];
-                                                                        for(let ro = 0; ro < parsed.length; ro++) {
-                                                                            if (parsed[ro] && Array.isArray(parsed[ro])) {
-                                                                                for (let co = 0; co < parsed[ro].length; co++) {
-                                                                                    if (parsed[ro][co] && parsed[ro][co].trim() !== "") {
-                                                                                        configs.push(`${ro}-${co}`);
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                        const stringified = JSON.stringify(configs);
+                                                                <TableOutlined className="edit-icon-btn action-header-btn" onMouseDown={() => {
+                                                                    // Usamos setTimeout para evitar Race Condition contra o onBlur da célula que o usuário acabou de digitar
+                                                                    setTimeout(() => {
+                                                                        const key = fieldLabel.get(field).value || field.id;
+                                                                        let val = inputCacheRef.current.get(key) || fieldValue.get(field).value || "";
+                                                                        if (!val || val.trim() === "") val = "{\"cells\":[]}";
                                                                         
-                                                                        if (window.mx && window.mx.data) {
-                                                                            window.mx.data.get({
-                                                                                guid: field.id,
-                                                                                callback: (mxobj: any) => {
-                                                                                    if (mxobj) {
-                                                                                        mxobj.set(tableConfig.id, stringified);
-                                                                                        if (window.mx.data.commit) {
-                                                                                            window.mx.data.commit({
-                                                                                                mxobj,
-                                                                                                callback: () => {
-                                                                                                    if (mxobj.update) mxobj.update();
-                                                                                                }
-                                                                                            });
-                                                                                        } else {
-                                                                                            if (mxobj.update) mxobj.update();
+                                                                        try {
+                                                                            const parsed = JSON.parse(val);
+                                                                            const configs: string[] = [];
+                                                                            
+                                                                            if (parsed && parsed.cells && Array.isArray(parsed.cells)) {
+                                                                                // Parseia o novo formato
+                                                                                parsed.cells.forEach((cell: any) => {
+                                                                                    if (cell.value && cell.value.trim() !== "") {
+                                                                                        configs.push(`${cell.row}-${cell.col}`);
+                                                                                    }
+                                                                                });
+                                                                            } else if (Array.isArray(parsed)) {
+                                                                                // Fallback legado
+                                                                                for(let ro = 0; ro < parsed.length; ro++) {
+                                                                                    if (parsed[ro] && Array.isArray(parsed[ro])) {
+                                                                                        for (let co = 0; co < parsed[ro].length; co++) {
+                                                                                            if (parsed[ro][co] && parsed[ro][co].trim() !== "") {
+                                                                                                configs.push(`${ro}-${co}`);
+                                                                                            }
                                                                                         }
                                                                                     }
                                                                                 }
-                                                                            });
-                                                                        }
-                                                                    } catch(e) { console.error("JSON Error parsing table data", e); }
+                                                                            }
+                                                                            
+                                                                            const stringified = configs.join(", "); // Mapeamento 0-0, 0-1 (Sem colchetes)
+                                                                            
+                                                                            const propConfig = tableConfig.get(field);
+                                                                            if (propConfig && !propConfig.readOnly) {
+                                                                                propConfig.setValue(stringified);
+                                                                            }
+                                                                            exportFormState();
+                                                                        } catch(e) { console.error("JSON Error parsing table data", e); }
+                                                                    }, 150);
                                                                 }} />
                                                             </Tooltip>
                                                         )}
@@ -337,6 +351,7 @@ export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fiel
                                                         onChangeAction={onChangeAction} 
                                                         inputCache={inputCacheRef}
                                                         editMode={editMode}
+                                                        onCacheUpdated={exportFormState}
                                                     />
                                                 </div>
                                             );

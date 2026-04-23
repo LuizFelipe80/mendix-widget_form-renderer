@@ -4,7 +4,7 @@
  * @author Mendix Widgets Framework Team
  */
 import { CSSProperties } from "react";
-import { ListValue, ListActionValue, ListAttributeValue } from "mendix";
+import { EditableValue, ListValue, ListActionValue, ListAttributeValue } from "mendix";
 import { Big } from "big.js";
 
 export interface FormRendererContainerProps {
@@ -23,6 +23,7 @@ export interface FormRendererContainerProps {
     tableRows?: ListAttributeValue<Big>;
     tableCols?: ListAttributeValue<Big>;
     tableConfig?: ListAttributeValue<string>;
+    outputJSON?: EditableValue<string>;
     editMode: boolean;
     onEditAction?: ListActionValue;
     onDeleteAction?: ListActionValue;
@@ -51,6 +52,7 @@ export interface FormRendererPreviewProps {
     tableRows: string;
     tableCols: string;
     tableConfig: string;
+    outputJSON: string;
     editMode: boolean;
     onEditAction: {} | null;
     onDeleteAction: {} | null;

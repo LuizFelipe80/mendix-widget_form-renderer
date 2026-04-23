@@ -73,6 +73,16 @@
             </property>
         </propertyGroup>
 
+        <propertyGroup caption="Data Output">
+            <property key="outputJSON" type="attribute" required="false">
+                <caption>Form Output JSON</caption>
+                <description>Attribute to store the entire form's state as a JSON string.</description>
+                <attributeTypes>
+                    <attributeType name="String"/>
+                </attributeTypes>
+            </property>
+        </propertyGroup>
+
         <propertyGroup caption="Editor Mode">
             <property key="editMode" type="boolean" defaultValue="false">
                 <caption>Enable Edit Mode</caption>
