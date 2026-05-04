@@ -1,9 +1,25 @@
 import React, { ReactElement, createElement, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Input, InputNumber, Select, DatePicker, Divider, Typography, Tooltip, Modal, Tabs, Switch, Dropdown } from "antd";
-import { EditOutlined, DeleteOutlined, TableOutlined, SettingOutlined } from "@ant-design/icons";
+import { EditOutlined, DeleteOutlined, SettingOutlined } from "@ant-design/icons";
 import { FormRendererContainerProps } from "../typings/FormRendererProps";
 import { ObjectItem, ListAttributeValue } from "mendix";
 import { Parser } from "hot-formula-parser";
+
+const parseCoord = (str: string): string => {
+    const s = str.trim().toUpperCase();
+    const match = s.match(/^([A-Z]+)([0-9]+)$/);
+    if (match) {
+        const letters = match[1];
+        const row = parseInt(match[2], 10) - 1;
+        let col = 0;
+        for (let i = 0; i < letters.length; i++) {
+            col = col * 26 + (letters.charCodeAt(i) - 64);
+        }
+        col = col - 1;
+        return `${row}-${col}`;
+    }
+    return s;
+};
 import dayjs from "dayjs";
 
 import "antd/dist/reset.css";
@@ -40,6 +56,34 @@ const TableInput = ({
 
     const [rawConfig, setRawConfig] = useState(tableConfigAttr?.get(item).value || "");
     const [focusedCell, setFocusedCell] = useState<{r: number, c: number} | null>(null);
+
+    const [colWidths, setColWidths] = useState<Record<number, number>>({});
+    const dragInfo = useRef<{ active: boolean, colIndex: number, startX: number, startWidth: number } | null>(null);
+
+    const onMouseDownResizer = (e: React.MouseEvent, colIndex: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const th = (e.target as HTMLElement).closest('th');
+        const startWidth = th ? th.getBoundingClientRect().width : 100;
+
+        dragInfo.current = { active: true, colIndex, startX: e.clientX, startWidth };
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            if (!dragInfo.current?.active) return;
+            const deltaX = moveEvent.clientX - dragInfo.current.startX;
+            const newWidth = Math.max(40, dragInfo.current.startWidth + deltaX);
+            setColWidths(prev => ({ ...prev, [dragInfo.current!.colIndex]: newWidth }));
+        };
+
+        const onMouseUp = () => {
+            if (dragInfo.current) dragInfo.current.active = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
 
     const getColumnLabel = useCallback((colIndex: number) => {
         let dividend = colIndex + 1;
@@ -111,7 +155,7 @@ const TableInput = ({
 
     const headerKeys = useMemo(() => {
         if (!rawConfig) return [];
-        return rawConfig.replace(/[\[\]"]/g, "").split(",").map(s => s.trim());
+        return rawConfig.replace(/[\[\]"]/g, "").split(",").map(s => parseCoord(s));
     }, [rawConfig]);
 
     useEffect(() => {
@@ -159,15 +203,27 @@ const TableInput = ({
 
     if (data.length === 0) return null;
 
+    const defaultWidth = 100;
+    const totalColsWidth = Array.from({ length: cols }).reduce<number>((acc, _, c) => acc + (colWidths[c] || defaultWidth), 0) + (showCoordinates ? 32 : 0);
+
     return (
         <div className="dynamic-table-wrapper">
-            <table className="form-custom-table">
+            <table className="form-custom-table" style={{ width: `${Math.max(totalColsWidth, 100)}px`, minWidth: '100%' }}>
+                <colgroup>
+                    {showCoordinates && <col style={{ width: 32 }} />}
+                    {Array.from({ length: cols }).map((_, c) => (
+                        <col key={`colgroup-${c}`} style={{ width: colWidths[c] ? `${colWidths[c]}px` : undefined }} />
+                    ))}
+                </colgroup>
                 {showCoordinates && (
                     <thead>
                         <tr>
                             <th className="excel-coord-corner"></th>
                             {Array.from({ length: cols }).map((_, c) => (
-                                <th key={`col-${c}`} className="excel-coord-header">{getColumnLabel(c)}</th>
+                                <th key={`col-${c}`} className="excel-coord-header">
+                                    {getColumnLabel(c)}
+                                    <div className="col-resizer-handle" onMouseDown={(e) => onMouseDownResizer(e, c)} />
+                                </th>
                             ))}
                         </tr>
                     </thead>
@@ -295,7 +351,7 @@ const FieldInput = ({ item, fieldType, fieldValueAttr, fieldLabelAttr, tableRows
 
     if (type === "integer") return withTooltip(<InputNumber disabled={disabledState} style={{ width: "100%" }} value={localValue ? parseInt(localValue, 10) : undefined} onChange={val => { const str = val !== null ? String(val) : ""; handleChange(str); }} onBlur={() => saveToMendix(localValue)} />);
     if (type === "decimal") return withTooltip(<InputNumber disabled={disabledState} style={{ width: "100%" }} value={localValue ? parseFloat(localValue) : undefined} step="0.01" stringMode onChange={val => { const str = val !== null ? String(val) : ""; handleChange(str); }} onBlur={() => saveToMendix(localValue)} />);
-    if (type === "_boolean" || type === "boolean") return <Select disabled={disabledState} style={{ width: "100%" }} value={localValue === "true" ? "true" : localValue === "false" ? "false" : undefined} placeholder="Selecione..." onChange={val => { handleChange(val); saveToMendix(val); }} options={[{ value: "true", label: "Sim" }, { value: "false", label: "Não" }]} />;
+    if (type === "_boolean" || type === "boolean") return <Select disabled={disabledState} style={{ width: "100%" }} value={localValue === "true" ? "true" : localValue === "false" ? "false" : undefined} placeholder="Select..." onChange={val => { handleChange(val); saveToMendix(val); }} options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]} />;
     if (type === "datetime" || type === "date") return withTooltip(<DatePicker disabled={disabledState} style={{ width: "100%" }} value={localValue ? dayjs(localValue) : null} format="DD/MM/YYYY" onChange={date => { const str = date ? date.toISOString() : ""; handleChange(str); saveToMendix(str); }} />);
     if (type === "textarea") return withTooltip(<TextArea disabled={disabledState} rows={4} value={localValue} onChange={e => handleChange(e.target.value)} onBlur={() => saveToMendix(localValue)} />);
 
@@ -402,55 +458,13 @@ export function FormRenderer({ fieldsDS, fieldLabel, fieldValue, fieldType, fiel
                                                     <div className="field-label-row">
                                                         <label className="field-label">{fieldLabel.get(field).value}</label>
                                                         {editMode && onEditAction && (
-                                                            <Tooltip title="Editar Campo">
+                                                            <Tooltip title="Edit Field">
                                                                 <EditOutlined className="edit-icon-btn" onClick={() => onEditAction.get(field).execute()} />
                                                             </Tooltip>
                                                         )}
                                                         {editMode && onDeleteAction && (
-                                                            <Tooltip title="Excluir Campo">
+                                                            <Tooltip title="Delete Field">
                                                                 <DeleteOutlined className="edit-icon-btn action-delete-btn" onClick={() => onDeleteAction.get(field).execute()} />
-                                                            </Tooltip>
-                                                        )}
-                                                        {editMode && typeValue.trim().toLowerCase() === "table" && tableConfig && (
-                                                            <Tooltip title="Extrair Headers Preenchidos">
-                                                                <TableOutlined className="edit-icon-btn action-header-btn" onMouseDown={() => {
-                                                                    setTimeout(() => {
-                                                                        const key = fieldLabel.get(field).value || field.id;
-                                                                        let val = inputCacheRef.current.get(key) || fieldValue.get(field).value || "";
-                                                                        if (!val || val.trim() === "") val = "{\"cells\":[]}";
-
-                                                                        try {
-                                                                            const parsed = JSON.parse(val);
-                                                                            const configs: string[] = [];
-
-                                                                            if (parsed && parsed.cells && Array.isArray(parsed.cells)) {
-                                                                                parsed.cells.forEach((cell: any) => {
-                                                                                    if (cell.value && cell.value.trim() !== "") {
-                                                                                        configs.push(`${cell.row}-${cell.col}`);
-                                                                                    }
-                                                                                });
-                                                                            } else if (Array.isArray(parsed)) {
-                                                                                for (let ro = 0; ro < parsed.length; ro++) {
-                                                                                    if (parsed[ro] && Array.isArray(parsed[ro])) {
-                                                                                        for (let co = 0; co < parsed[ro].length; co++) {
-                                                                                            if (parsed[ro][co] && parsed[ro][co].trim() !== "") {
-                                                                                                configs.push(`${ro}-${co}`);
-                                                                                            }
-                                                                                        }
-                                                                                    }
-                                                                                }
-                                                                            }
-
-                                                                            const stringified = configs.join(", ");
-
-                                                                            const propConfig = tableConfig.get(field);
-                                                                            if (propConfig && !propConfig.readOnly) {
-                                                                                propConfig.setValue(stringified);
-                                                                            }
-                                                                            exportFormState();
-                                                                        } catch (e) { console.error("JSON Error parsing table data", e); }
-                                                                    }, 150);
-                                                                }} />
                                                             </Tooltip>
                                                         )}
                                                     </div>
